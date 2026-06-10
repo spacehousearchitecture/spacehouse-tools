@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spacehouse — Task Scheduler</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg: #0f0f0e;
+  --surface: #191917;
+  --surface2: #222220;
+  --surface3: #2c2c29;
+  --border: rgba(255,255,255,0.08);
+  --border2: rgba(255,255,255,0.14);
+  --text: #f0ede8;
+  --text2: #9e9a92;
+  --text3: #5c5a55;
+  --accent: #d4a853;
+  --accent-dim: rgba(212,168,83,0.15);
+  --accent-dim2: rgba(212,168,83,0.08);
+  --red: #e05a4a;
+  --red-dim: rgba(224,90,74,0.15);
+  --green: #4caf7d;
+  --green-dim: rgba(76,175,125,0.15);
+  --blue: #5b8ef0;
+  --blue-dim: rgba(91,142,240,0.15);
+  --purple: #9b72e8;
+  --purple-dim: rgba(155,114,232,0.15);
+  --teal: #3db9a8;
+  --teal-dim: rgba(61,185,168,0.15);
+  --font: 'Instrument Sans', system-ui, sans-serif;
+  --serif: 'Instrument Serif', Georgia, serif;
+  --mono: 'JetBrains Mono', monospace;
+  --r: 8px;
+  --r-lg: 12px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ── Layout ── */
+.app { display: flex; height: 100vh; overflow: hidden; }
+
+.sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.brand {
+  padding: 20px 18px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand-name {
+  font-family: var(--serif);
+  font-size: 18px;
+  color: var(--text);
+  letter-spacing: -0.3px;
+}
+
+.brand-sub {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 1px;
+  font-family: var(--mono);
+}
+
+.nav-section {
+  padding: 16px 18px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text3);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 18px;
+  font-size: 13px;
+  color: var(--text2);
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: all 0.12s;
+  user-select: none;
+  position: relative;
+}
+
+.nav-item:hover { background: var(--surface2); color: var(--text); }
+.nav-item.active { background: var(--accent-dim2); color: var(--accent); border-left-color: var(--accent); font-weight: 500; }
+
+.nav-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.nav-count {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+}
+
+.nav-overdue {
+  background: var(--red-dim);
+  color: var(--red);
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 99px;
+  padding: 1px 6px;
+  margin-left: auto;
+  font-family: var(--mono);
+}
+
+/* Process legend */
+.process-list { padding: 6px 0 12px; }
+.process-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 18px;
+  font-size: 12px;
+  color: var(--text2);
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.process-item:hover { background: var(--surface2); color: var(--text); }
+.process-item.active { color: var(--text); }
+
+/* Main */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 13px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.topbar-title {
+  font-family: var(--serif);
+  font-size: 17px;
+  font-style: italic;
+  color: var(--text);
+}
+
+.topbar-date {
+  font-size: 12px;
+  color: var(--text3);
+  font-family: var(--mono);
+}
+
+.page { flex: 1; overflow-y: auto; }
+
+/* ── Quick add bar ── */
+.quick-add {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.quick-add input {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 8px 12px;
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+  transition: border 0.12s;
+}
+
+.quick-add input::placeholder { color: var(--text3); }
+.quick-add input:focus { border-color: var(--accent); }
+
+.btn {
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: var(--r);
+  border: 1px solid var(--border2);
+  background: transparent;
+  color: var(--text2);
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+
+.btn:hover { background: var(--surface2); color: var(--text); }
+.btn:active { transform: scale(0.97); }
+
+.btn-accent {
+  background: var(--accent);
+  color: #1a1200;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.btn-accent:hover { background: #e0b85e; color: #1a1200; }
+.btn-sm { font-size: 11px; padding: 4px 10px; }
+.btn-ghost { border-color: transparent; }
+.btn-ghost:hover { border-color: var(--border); }
+
+/* ── Day columns ── */
+.schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: var(--border);
+  flex: 1;
+  min-height: 0;
+}
+
+.day-col {
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.day-header {
+  background: var(--surface);
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.day-header-name {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text3);
+}
+
+.day-header-date {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text2);
+  line-height: 1.1;
+  margin-top: 1px;
+}
+
+.day-header-date.today { color: var(--accent); }
+
+.day-hours {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text3);
+  margin-top: 2px;
+}
+
+.day-body { flex: 1; padding: 8px 8px; overflow-y: auto; }
+
+/* ── Task cards ── */
+.task-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 9px 10px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: all 0.12s;
+  position: relative;
+  overflow: hidden;
+}
+
+.task-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+}
+
+.task-card:hover { border-color: var(--border2); background: var(--surface2); }
+.task-card.done { opacity: 0.4; }
+.task-card.done .task-name { text-decoration: line-through; }
+
+.task-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.check-circle {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text3);
+  flex-shrink: 0;
+  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s;
+  cursor: pointer;
+}
+
+.check-circle:hover { border-color: var(--accent); }
+.check-circle.checked { background: var(--accent); border-color: var(--accent); }
+.check-circle.checked::after { content: '✓'; font-size: 9px; color: #1a1200; font-weight: 700; }
+
+.task-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.4;
+  flex: 1;
+}
+
+.task-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  padding-left: 24px;
+  flex-wrap: wrap;
+}
+
+.task-time {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  background: var(--surface3);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.task-process {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 7px;
+  border-radius: 4px;
+}
+
+.task-overdue {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--red);
+  background: var(--red-dim);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+/* List view */
+.list-view { padding: 0; }
+
+.list-section { padding: 20px 20px 0; }
+.list-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.list-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text3);
+}
+
+.list-section-count {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+}
+
+.list-tasks { display: flex; flex-direction: column; gap: 4px; margin-bottom: 24px; }
+
+.list-task {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.1s;
+  position: relative;
+  overflow: hidden;
+}
+
+.list-task::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+}
+
+.list-task:hover { border-color: var(--border2); background: var(--surface2); }
+.list-task.done { opacity: 0.4; }
+.list-task.done .lt-name { text-decoration: line-through; }
+
+.lt-name {
+  font-size: 13px;
+  font-weight: 500;
+  flex: 1;
+  color: var(--text);
+}
+
+.lt-process {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.lt-date {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  min-width: 60px;
+  text-align: right;
+}
+
+.lt-date.overdue { color: var(--red); }
+.lt-date.today { color: var(--accent); }
+
+.lt-time {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  background: var(--surface3);
+  padding: 2px 7px;
+  border-radius: 4px;
+  min-width: 36px;
+  text-align: center;
+}
+
+.lt-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.list-task:hover .lt-actions { opacity: 1; }
+
+/* ── Modal ── */
+.overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  backdrop-filter: blur(3px);
+}
+
+.overlay.open { display: flex; }
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--r-lg);
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+}
+
+.modal-head {
+  padding: 18px 20px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-head h2 { font-size: 15px; font-weight: 600; }
+.modal-x { background: none; border: none; color: var(--text3); font-size: 18px; cursor: pointer; padding: 0 4px; }
+
+.modal-body { padding: 14px 20px 20px; }
+
+.field { margin-bottom: 14px; }
+.field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text3);
+  margin-bottom: 6px;
+}
+
+.field input, .field select, .field textarea {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 8px 12px;
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+  transition: border 0.12s;
+}
+
+.field input::placeholder, .field textarea::placeholder { color: var(--text3); }
+.field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); }
+.field select option { background: var(--surface2); }
+.field textarea { resize: vertical; min-height: 60px; }
+
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+
+/* Process color swatches */
+.process-swatches { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.swatch {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform 0.1s;
+}
+.swatch:hover { transform: scale(1.15); }
+.swatch.selected { border-color: #fff; }
+
+/* Week nav */
+.week-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.week-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text2);
+  min-width: 120px;
+  text-align: center;
+}
+
+/* Stat pills */
+.stat-row {
+  display: flex;
+  gap: 8px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.stat-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text2);
+  background: var(--surface2);
+  padding: 4px 10px;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+}
+
+.stat-pill-val { font-family: var(--mono); font-weight: 500; }
+
+/* Toggle tabs */
+.view-tabs {
+  display: flex;
+  background: var(--surface2);
+  border-radius: var(--r);
+  padding: 2px;
+  gap: 1px;
+}
+
+.view-tab {
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text3);
+  transition: all 0.12s;
+}
+
+.view-tab.active { background: var(--surface); color: var(--text); }
+
+/* Drag hint */
+.drop-zone {
+  min-height: 40px;
+  border: 1.5px dashed var(--border);
+  border-radius: var(--r);
+  margin-bottom: 6px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--text3);
+}
+
+.drop-zone.active { display: flex; background: var(--accent-dim2); border-color: var(--accent); color: var(--accent); }
+
+/* Unscheduled sidebar panel */
+.unscheduled-panel {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-header {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panel-body { flex: 1; overflow-y: auto; padding: 8px; }
+
+/* Schedule view wrapper */
+.schedule-wrap { display: flex; flex: 1; overflow: hidden; }
+
+/* Empty state */
+.empty-day {
+  padding: 16px 8px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text3);
+  line-height: 1.6;
+}
+
+/* Detail panel */
+.detail-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+}
+.detail-overlay.open { display: block; }
+
+.detail-panel {
+  position: fixed;
+  right: 0; top: 0; bottom: 0;
+  width: 320px;
+  background: var(--surface);
+  border-left: 1px solid var(--border2);
+  box-shadow: -8px 0 32px rgba(0,0,0,0.3);
+  display: flex;
+  flex-direction: column;
+  z-index: 901;
+}
+
+.detail-head {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.detail-body { flex: 1; overflow-y: auto; padding: 16px; }
+
+.detail-field {
+  margin-bottom: 14px;
+}
+
+.detail-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text3);
+  margin-bottom: 4px;
+}
+
+.detail-val {
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* Priority indicator */
+.priority-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-name">Spacehouse</div>
+      <div class="brand-sub">task scheduler</div>
+    </div>
+
+    <div class="nav-section">Views</div>
+    <div class="nav-item active" data-view="today" onclick="switchView('today',this)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.3"/><path d="M7 4.5V7l1.5 1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      Today
+      <span class="nav-overdue" id="nav-overdue-count" style="display:none">0</span>
+    </div>
+    <div class="nav-item" data-view="week" onclick="switchView('week',this)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M1 5.5h12M4.5 2v1.5M9.5 2v1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      Week
+    </div>
+    <div class="nav-item" data-view="all" onclick="switchView('all',this)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4h10M2 7h10M2 10h6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      All Tasks
+      <span class="nav-count" id="nav-all-count">0</span>
+    </div>
+    <div class="nav-item" data-view="backlog" onclick="switchView('backlog',this)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="1.5" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3" stroke-dasharray="2 1.5"/></svg>
+      Backlog
+      <span class="nav-count" id="nav-backlog-count">0</span>
+    </div>
+
+    <div class="nav-section">Processes</div>
+    <div class="process-list" id="process-nav"></div>
+
+    <div style="padding:12px 18px;border-top:1px solid var(--border);margin-top:auto">
+      <button class="btn btn-accent" style="width:100%;justify-content:center;display:flex" onclick="openAdd()">+ New Task</button>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div>
+        <div class="topbar-title" id="view-title">Today</div>
+        <div class="topbar-date" id="view-subtitle"></div>
+      </div>
+      <div class="view-tabs" id="view-tabs" style="display:none">
+        <div class="view-tab active" onclick="setWeekMode('schedule',this)">Schedule</div>
+        <div class="view-tab" onclick="setWeekMode('list',this)">List</div>
+      </div>
+      <div class="week-nav" id="week-nav-controls" style="display:none">
+        <button class="btn btn-sm btn-ghost" onclick="shiftWeek(-1)">‹</button>
+        <span class="week-label" id="week-range-label"></span>
+        <button class="btn btn-sm btn-ghost" onclick="shiftWeek(1)">›</button>
+        <button class="btn btn-sm" onclick="goToThisWeek()">This week</button>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:6px">
+        <button class="btn btn-sm" onclick="openAdd()">+ Task</button>
+      </div>
+    </div>
+
+    <!-- Stat bar -->
+    <div class="stat-row" id="stat-row">
+      <div class="stat-pill"><span class="stat-pill-val" id="stat-open">0</span>&nbsp;open</div>
+      <div class="stat-pill"><span class="stat-pill-val" id="stat-hours">0h</span>&nbsp;estimated</div>
+      <div class="stat-pill" style="color:var(--red)"><span class="stat-pill-val" id="stat-overdue">0</span>&nbsp;overdue</div>
+      <div class="stat-pill" style="color:var(--green)"><span class="stat-pill-val" id="stat-done">0</span>&nbsp;done today</div>
+    </div>
+
+    <!-- Views -->
+    <div id="view-today" class="page" style=""></div>
+    <div id="view-week" class="page" style="display:none; overflow:hidden; height:100%"></div>
+    <div id="view-all" class="page" style="display:none"></div>
+    <div id="view-backlog" class="page" style="display:none"></div>
+
+  </div>
+</div>
+
+<!-- Detail overlay -->
+<div class="detail-overlay" id="detail-overlay" onclick="closeDetail()"></div>
+<div class="detail-panel" id="detail-panel" style="display:none">
+  <div class="detail-head">
+    <div style="flex:1">
+      <div id="dp-name" style="font-size:15px;font-weight:600;color:var(--text);line-height:1.3"></div>
+      <div id="dp-process" style="margin-top:6px"></div>
+    </div>
+    <button class="modal-x" onclick="closeDetail()">✕</button>
+  </div>
+  <div class="detail-body">
+    <div class="detail-field"><div class="detail-label">Scheduled</div><div class="detail-val" id="dp-date"></div></div>
+    <div class="detail-field"><div class="detail-label">Time Estimate</div><div class="detail-val" id="dp-time"></div></div>
+    <div class="detail-field"><div class="detail-label">Priority</div><div class="detail-val" id="dp-priority"></div></div>
+    <div class="detail-field"><div class="detail-label">Notes</div><div class="detail-val" id="dp-notes" style="color:var(--text2);font-size:12px;line-height:1.6"></div></div>
+    <div style="display:flex;gap:6px;margin-top:16px;flex-wrap:wrap">
+      <button class="btn btn-sm" onclick="editTask(currentDetailId)">Edit</button>
+      <button class="btn btn-sm btn-accent" onclick="toggleDone(currentDetailId);closeDetail()">Mark done</button>
+      <button class="btn btn-sm" onclick="rescheduleToday(currentDetailId)" style="margin-left:auto">→ Today</button>
+      <button class="btn btn-sm" style="color:var(--red)" onclick="deleteTask(currentDetailId);closeDetail()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="overlay" id="task-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="modal-title">New Task</h2>
+      <button class="modal-x" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="edit-id">
+      <div class="field">
+        <label>Task Name *</label>
+        <input type="text" id="f-name" placeholder="What needs to get done?">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Process</label>
+          <select id="f-process">
+            <option value="">— No process —</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Priority</label>
+          <select id="f-priority">
+            <option value="normal">Normal</option>
+            <option value="high">High</option>
+            <option value="asap">ASAP</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Scheduled Date</label>
+          <input type="date" id="f-date">
+        </div>
+        <div class="field">
+          <label>Time Estimate</label>
+          <select id="f-time">
+            <option value="">—</option>
+            <option value="0.25">15m</option>
+            <option value="0.5">30m</option>
+            <option value="1">1h</option>
+            <option value="1.5">1.5h</option>
+            <option value="2">2h</option>
+            <option value="3">3h</option>
+            <option value="4">4h</option>
+            <option value="6">6h</option>
+            <option value="8">8h</option>
+            <option value="10">10h</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Recurring</label>
+        <select id="f-recur">
+          <option value="">One-time</option>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Notes</label>
+        <textarea id="f-notes" rows="2" placeholder="Optional context, links, references..."></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-accent" onclick="saveTask()">Save Task</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Storage ──
+const STORE_KEY = 'spacehouse_tasks_v2';
+let DB = { tasks: [], processes: [] };
+
+async function loadDB() {
+  try {
+    const r = await window.storage.get(STORE_KEY);
+    DB = r ? JSON.parse(r.value) : seedDB();
+  } catch(e) { DB = seedDB(); }
+  if (!DB.processes || !DB.processes.length) DB.processes = defaultProcesses();
+  if (!DB.tasks) DB.tasks = [];
+}
+
+async function save() {
+  try { await window.storage.set(STORE_KEY, JSON.stringify(DB)); } catch(e) {}
+}
+
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,5); }
+
+// ── Processes ──
+function defaultProcesses() {
+  return [
+    {id:'cd',   name:'Construction Docs', color:'#5b8ef0'},
+    {id:'biz',  name:'Business Dev',      color:'#d4a853'},
+    {id:'mktg', name:'Marketing',         color:'#9b72e8'},
+    {id:'ops',  name:'Operations',        color:'#4caf7d'},
+    {id:'admin',name:'Admin',             color:'#3db9a8'},
+    {id:'design',name:'Design',           color:'#e05a4a'},
+  ];
+}
+
+// ── Seed data from the screenshot ──
+function seedDB() {
+  const d = s => s; // date string
+  const tasks = [
+    // Today (Jun 3, 2025)
+    {id:uid(),name:'Cipriano CD',process:'cd',priority:'asap',date:'2025-06-03',time:2,done:false,notes:'',recur:''},
+    {id:uid(),name:'567 Citation CD',process:'cd',priority:'high',date:'2025-06-01',time:4,done:false,notes:'',recur:''},
+    {id:uid(),name:'Check emails',process:'admin',priority:'normal',date:'2025-06-03',time:1,done:false,notes:'',recur:'weekly'},
+    {id:uid(),name:'Lunch',process:'ops',priority:'normal',date:'2025-06-03',time:0.5,done:false,notes:'',recur:'daily'},
+    {id:uid(),name:'Exercise',process:'ops',priority:'normal',date:'2025-06-03',time:0.5,done:false,notes:'',recur:'daily'},
+    // Past deadline
+    {id:uid(),name:'6 Dale Lane Construction Documents',process:'cd',priority:'high',date:'2025-05-12',time:10,done:false,notes:'Full CD set',recur:''},
+    {id:uid(),name:'Register for Build Maine',process:'biz',priority:'normal',date:'2025-05-11',time:0,done:false,notes:'Reminder — event registration',recur:''},
+    {id:uid(),name:'Dan Desrosier Follow-up',process:'biz',priority:'normal',date:'2025-04-30',time:0,done:false,notes:'Reminder — follow up on lead',recur:''},
+    {id:uid(),name:'3D Interior Images Main St Duplexes',process:'design',priority:'high',date:'2025-04-08',time:4,done:false,notes:'Interior renders for Main St duplex project',recur:''},
+    {id:uid(),name:'Alex Proposal',process:'biz',priority:'normal',date:'2025-03-04',time:0.5,done:false,notes:'',recur:''},
+    {id:uid(),name:'Nick absinthe bar idea',process:'design',priority:'normal',date:'2025-01-22',time:2,done:false,notes:'Design concept for Nick\'s bar project',recur:''},
+    // Tomorrow / upcoming
+    {id:uid(),name:'Comb the Network',process:'biz',priority:'normal',date:'2025-06-04',time:1,done:false,notes:'',recur:''},
+    {id:uid(),name:'Connect Perry Builders',process:'biz',priority:'normal',date:'2025-06-17',time:2,done:false,notes:'',recur:''},
+  ];
+  return { tasks, processes: defaultProcesses() };
+}
+
+// ── Date helpers ──
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+
+function fmtDate(s) {
+  if (!s) return '—';
+  const [y,m,d] = s.split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[+m-1]} ${+d}`;
+}
+
+function fmtTime(h) {
+  if (!h || +h === 0) return null;
+  const n = +h;
+  if (n < 1) return `${Math.round(n*60)}m`;
+  if (n === Math.floor(n)) return `${n}h`;
+  return `${Math.floor(n)}h ${Math.round((n%1)*60)}m`;
+}
+
+function isOverdue(task) {
+  return task.date && task.date < todayStr() && !task.done;
+}
+
+function getWeekStart(offset = 0) {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = (day === 0 ? -6 : 1 - day) + offset * 7;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0,0,0,0);
+  return d;
+}
+
+let weekOffset = 0;
+let weekMode = 'schedule';
+
+// ── Process helpers ──
+function getProcess(id) { return DB.processes.find(p=>p.id===id); }
+
+function processTag(id, size='normal') {
+  const p = getProcess(id);
+  if (!p) return '';
+  const fs = size==='sm' ? '10px' : '11px';
+  const pad = size==='sm' ? '1px 6px' : '2px 8px';
+  return `<span class="lt-process" style="background:${p.color}22;color:${p.color};font-size:${fs};padding:${pad}">${p.name}</span>`;
+}
+
+function cardColor(id) {
+  const p = getProcess(id);
+  return p ? p.color : 'var(--text3)';
+}
+
+// ── Nav / views ──
+let currentView = 'today';
+
+function switchView(v, el) {
+  currentView = v;
+  document.querySelectorAll('.page').forEach(p=>p.style.display='none');
+  document.getElementById('view-'+v).style.display = v==='week'?'flex':'block';
+  if (v==='week') document.getElementById('view-'+v).style.height='100%';
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.getElementById('view-tabs').style.display = v==='week'?'flex':'none';
+  document.getElementById('week-nav-controls').style.display = v==='week'?'flex':'none';
+  const titles = {today:'Today',week:'Week',all:'All Tasks',backlog:'Backlog'};
+  document.getElementById('view-title').textContent = titles[v]||v;
+  if (v==='today') renderToday();
+  else if (v==='week') renderWeek();
+  else if (v==='all') renderAll();
+  else if (v==='backlog') renderBacklog();
+  updateStats();
+}
+
+function setWeekMode(m, el) {
+  weekMode = m;
+  document.querySelectorAll('.view-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  renderWeek();
+}
+
+function shiftWeek(d) { weekOffset += d; renderWeek(); }
+function goToThisWeek() { weekOffset = 0; renderWeek(); }
+
+// ── Render today ──
+function renderToday() {
+  const today = todayStr();
+  const el = document.getElementById('view-today');
+  const allTasks = DB.tasks;
+  const overdue = allTasks.filter(t => t.date && t.date < today && !t.done);
+  const todayTasks = allTasks.filter(t => t.date === today && !t.done);
+  const doneTasks = allTasks.filter(t => t.date === today && t.done);
+  const upcoming = allTasks.filter(t => t.date > today && !t.done).slice(0,3);
+
+  let html = '<div style="max-width:700px;padding:20px">';
+
+  if (overdue.length) {
+    html += section('Tasks past deadline', overdue, true);
+  }
+  html += section("Today's tasks", todayTasks.sort((a,b)=>priorityOrder(b)-priorityOrder(a)));
+  if (upcoming.length) html += section("Upcoming", upcoming);
+  if (doneTasks.length) html += section("Done today", doneTasks);
+
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function priorityOrder(t) {
+  return {asap:3,high:2,normal:1}[t.priority]||1;
+}
+
+function section(title, tasks, overdue=false) {
+  const count = tasks.length;
+  let h = `<div style="margin-bottom:24px">
+    <div class="list-section-header" style="margin-bottom:10px">
+      <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:${overdue?'var(--red)':'var(--text3)'}">${title}</span>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--text3)">${count}</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px">`;
+
+  if (!count) {
+    h += `<div style="padding:12px 0;font-size:12px;color:var(--text3)">Nothing here — nice.</div>`;
+  } else {
+    tasks.forEach(t => { h += listTaskHTML(t, overdue); });
+  }
+  h += '</div></div>';
+  return h;
+}
+
+function listTaskHTML(t, showOverdue=false) {
+  const proc = getProcess(t.process);
+  const color = proc ? proc.color : 'transparent';
+  const timeStr = fmtTime(t.time);
+  const isOvd = isOverdue(t);
+  const dateColor = isOvd ? 'var(--red)' : (t.date===todayStr() ? 'var(--accent)' : 'var(--text3)');
+  const priIcon = {asap:'⚡',high:'↑',normal:''}[t.priority]||'';
+
+  return `<div class="list-task ${t.done?'done':''}" onclick="showDetail('${t.id}')" style="border-left-color:${color}">
+    <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:${color};border-radius:3px 0 0 3px"></div>
+    <div class="check-circle ${t.done?'checked':''}" onclick="event.stopPropagation();toggleDone('${t.id}')" style="${t.done?`background:${color};border-color:${color}`:''}"></div>
+    <span class="lt-name">${priIcon?`<span style="color:var(--accent);font-size:11px;margin-right:3px">${priIcon}</span>`:''}${t.name}</span>
+    ${proc ? `<span class="lt-process" style="background:${color}22;color:${color};font-size:10px;padding:1px 7px">${proc.name}</span>` : ''}
+    ${timeStr ? `<span class="lt-time">${timeStr}</span>` : ''}
+    ${t.date&&showOverdue ? `<span class="lt-date overdue" style="color:var(--red)">${fmtDate(t.date)}</span>` : ''}
+    <div class="lt-actions">
+      <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();editTask('${t.id}')">edit</button>
+    </div>
+  </div>`;
+}
+
+// ── Render week ──
+function renderWeek() {
+  const ws = getWeekStart(weekOffset);
+  const days = Array.from({length:7},(_,i)=>{
+    const d = new Date(ws);
+    d.setDate(ws.getDate()+i);
+    return d;
+  });
+  const fmt2 = d => d.toISOString().split('T')[0];
+  const today = todayStr();
+  const dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const start = fmtDate(fmt2(days[0]));
+  const end = fmtDate(fmt2(days[6]));
+  document.getElementById('week-range-label').textContent = `${start} – ${end}`;
+
+  if (weekMode === 'schedule') {
+    let html = `<div style="display:flex;height:100%;overflow:hidden">
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);flex:1;overflow-y:auto">`;
+    days.forEach((d,i) => {
+      const ds = fmt2(d);
+      const isToday = ds === today;
+      const dayTasks = DB.tasks.filter(t=>t.date===ds);
+      const totalH = dayTasks.filter(t=>!t.done).reduce((a,t)=>a+(+t.time||0),0);
+      html += `<div style="background:var(--bg);display:flex;flex-direction:column;min-height:0">
+        <div style="background:var(--surface);padding:10px 10px 8px;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5">
+          <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3)">${dayNames[i]}</div>
+          <div style="font-size:20px;font-weight:600;color:${isToday?'var(--accent)':'var(--text2)'};line-height:1.1;margin-top:1px">${d.getDate()}</div>
+          ${totalH>0?`<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px">${fmtTime(totalH)}</div>`:''}
+        </div>
+        <div style="flex:1;padding:8px;overflow-y:auto">`;
+      if (!dayTasks.length) {
+        html += `<div style="padding:12px 4px;font-size:11px;color:var(--text3);text-align:center">—</div>`;
+      } else {
+        dayTasks.sort((a,b)=>priorityOrder(b)-priorityOrder(a)).forEach(t=>{
+          const proc = getProcess(t.process);
+          const color = proc ? proc.color : 'var(--text3)';
+          const timeStr = fmtTime(t.time);
+          const isOvd = isOverdue(t);
+          html += `<div class="task-card ${t.done?'done':''}" onclick="showDetail('${t.id}')" style="border-left-color:${color}">
+            <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:${color};border-radius:3px 0 0 3px"></div>
+            <div class="task-check">
+              <div class="check-circle ${t.done?'checked':''}" onclick="event.stopPropagation();toggleDone('${t.id}')" style="${t.done?`background:${color};border-color:${color}`:''}"></div>
+              <span class="task-name">${t.name}</span>
+            </div>
+            <div class="task-meta">
+              ${timeStr?`<span class="task-time">${timeStr}</span>`:''}
+              ${proc?`<span class="task-process" style="background:${color}22;color:${color};font-size:9px;padding:1px 5px">${proc.name}</span>`:''}
+              ${isOvd?`<span class="task-overdue">overdue</span>`:''}
+            </div>
+          </div>`;
+        });
+      }
+      html += `<div onclick="openAddForDate('${ds}')" style="border:1px dashed var(--border);border-radius:var(--r);padding:6px;text-align:center;font-size:10px;color:var(--text3);cursor:pointer;margin-top:4px;transition:all 0.1s" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text3)'">+ add</div>`;
+      html += `</div></div>`;
+    });
+    html += '</div></div>';
+    document.getElementById('view-week').innerHTML = html;
+  } else {
+    // List mode
+    let html = '<div style="padding:20px;max-width:700px">';
+    days.forEach((d,i)=>{
+      const ds = fmt2(d);
+      const isToday = ds === today;
+      const dayTasks = DB.tasks.filter(t=>t.date===ds);
+      if (!dayTasks.length) return;
+      html += `<div style="margin-bottom:20px">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:${isToday?'var(--accent)':'var(--text3)'};margin-bottom:8px">
+          ${dayNames[i]} ${d.getDate()} ${isToday?'— Today':''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">`;
+      dayTasks.forEach(t=>{ html+=listTaskHTML(t); });
+      html += '</div></div>';
+    });
+    if (!html.includes('list-task')) html += '<div style="color:var(--text3);font-size:13px;padding:20px 0">No tasks this week</div>';
+    html += '</div>';
+    document.getElementById('view-week').innerHTML = html;
+  }
+}
+
+// ── Render all ──
+function renderAll() {
+  const el = document.getElementById('view-all');
+  const filterProc = filterProcess;
+  let tasks = [...DB.tasks];
+  if (filterProc) tasks = tasks.filter(t=>t.process===filterProc);
+  tasks.sort((a,b) => {
+    if (!a.date && !b.date) return 0;
+    if (!a.date) return 1;
+    if (!b.date) return -1;
+    return a.date.localeCompare(b.date);
+  });
+
+  const grouped = {};
+  tasks.forEach(t=>{
+    const k = t.date||'__nodate__';
+    if (!grouped[k]) grouped[k]=[];
+    grouped[k].push(t);
+  });
+
+  let html = '<div style="padding:20px;max-width:760px">';
+  const today = todayStr();
+  Object.entries(grouped).forEach(([date,ts])=>{
+    const isToday = date===today;
+    const isOvd = date<today&&date!=='__nodate__';
+    const label = date==='__nodate__'?'Unscheduled':isToday?'Today':fmtDate(date);
+    const color = isOvd?'var(--red)':isToday?'var(--accent)':'var(--text3)';
+    html += `<div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:${color};margin-bottom:8px">${label}</div>
+      <div style="display:flex;flex-direction:column;gap:4px">`;
+    ts.forEach(t=>{ html+=listTaskHTML(t); });
+    html += '</div></div>';
+  });
+
+  if (!tasks.length) html += '<div style="color:var(--text3);font-size:13px;padding:20px 0">No tasks</div>';
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// ── Render backlog (no date) ──
+function renderBacklog() {
+  const el = document.getElementById('view-backlog');
+  const tasks = DB.tasks.filter(t=>!t.date&&!t.done);
+  let html = '<div style="padding:20px;max-width:700px">';
+  html += `<p style="font-size:13px;color:var(--text2);margin-bottom:16px">Tasks with no scheduled date. Drag to a week to schedule, or click to edit.</p>`;
+  if (!tasks.length) {
+    html += '<div style="color:var(--text3);font-size:13px">Backlog is empty.</div>';
+  } else {
+    html += '<div style="display:flex;flex-direction:column;gap:4px">';
+    tasks.forEach(t=>{ html+=listTaskHTML(t); });
+    html += '</div>';
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// ── Stats ──
+function updateStats() {
+  const today = todayStr();
+  const open = DB.tasks.filter(t=>!t.done).length;
+  const overdue = DB.tasks.filter(t=>isOverdue(t)).length;
+  const hours = DB.tasks.filter(t=>!t.done).reduce((a,t)=>a+(+t.time||0),0);
+  const done = DB.tasks.filter(t=>t.done&&t.date===today).length;
+  document.getElementById('stat-open').textContent = open;
+  document.getElementById('stat-hours').textContent = fmtTime(hours)||'0h';
+  document.getElementById('stat-overdue').textContent = overdue;
+  document.getElementById('stat-done').textContent = done;
+  document.getElementById('nav-all-count').textContent = DB.tasks.filter(t=>!t.done).length;
+  document.getElementById('nav-backlog-count').textContent = DB.tasks.filter(t=>!t.date&&!t.done).length;
+  const oc = document.getElementById('nav-overdue-count');
+  if (overdue > 0) { oc.textContent = overdue; oc.style.display=''; }
+  else oc.style.display='none';
+}
+
+// ── Process nav ──
+let filterProcess = null;
+
+function renderProcessNav() {
+  const nav = document.getElementById('process-nav');
+  const sel = document.getElementById('f-process');
+  sel.innerHTML = '<option value="">— No process —</option>';
+  DB.processes.forEach(p=>{
+    const count = DB.tasks.filter(t=>t.process===p.id&&!t.done).length;
+    nav.innerHTML += `<div class="process-item ${filterProcess===p.id?'active':''}" onclick="filterByProcess('${p.id}')">
+      <div class="nav-dot" style="background:${p.color}"></div>
+      <span style="flex:1">${p.name}</span>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--text3)">${count}</span>
+    </div>`;
+    sel.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+  });
+}
+
+function filterByProcess(id) {
+  filterProcess = filterProcess===id ? null : id;
+  renderProcessNav();
+  if (currentView==='all') renderAll();
+}
+
+// ── Task CRUD ──
+function openAdd() {
+  document.getElementById('modal-title').textContent='New Task';
+  document.getElementById('edit-id').value='';
+  document.getElementById('f-name').value='';
+  document.getElementById('f-process').value='';
+  document.getElementById('f-priority').value='normal';
+  document.getElementById('f-date').value=todayStr();
+  document.getElementById('f-time').value='';
+  document.getElementById('f-recur').value='';
+  document.getElementById('f-notes').value='';
+  document.getElementById('task-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('f-name').focus(),50);
+}
+
+function openAddForDate(date) {
+  openAdd();
+  document.getElementById('f-date').value=date;
+}
+
+function closeModal() {
+  document.getElementById('task-modal').classList.remove('open');
+}
+
+function editTask(id) {
+  const t = DB.tasks.find(x=>x.id===id);
+  if (!t) return;
+  document.getElementById('modal-title').textContent='Edit Task';
+  document.getElementById('edit-id').value=t.id;
+  document.getElementById('f-name').value=t.name;
+  document.getElementById('f-process').value=t.process||'';
+  document.getElementById('f-priority').value=t.priority||'normal';
+  document.getElementById('f-date').value=t.date||'';
+  document.getElementById('f-time').value=t.time||'';
+  document.getElementById('f-recur').value=t.recur||'';
+  document.getElementById('f-notes').value=t.notes||'';
+  closeDetail();
+  document.getElementById('task-modal').classList.add('open');
+}
+
+function saveTask() {
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) return;
+  const id = document.getElementById('edit-id').value;
+  const data = {
+    id: id||uid(), name,
+    process: document.getElementById('f-process').value||null,
+    priority: document.getElementById('f-priority').value,
+    date: document.getElementById('f-date').value||null,
+    time: +(document.getElementById('f-time').value)||0,
+    recur: document.getElementById('f-recur').value||'',
+    notes: document.getElementById('f-notes').value,
+    done: id ? (DB.tasks.find(t=>t.id===id)?.done||false) : false
+  };
+  if (id) DB.tasks = DB.tasks.map(t=>t.id===id?data:t);
+  else DB.tasks.push(data);
+  save(); closeModal(); rerender();
+}
+
+function toggleDone(id) {
+  const t = DB.tasks.find(x=>x.id===id);
+  if (!t) return;
+  t.done = !t.done;
+  if (t.done && t.recur) scheduleNext(t);
+  save(); rerender();
+}
+
+function scheduleNext(t) {
+  const d = new Date(t.date||todayStr());
+  if (t.recur==='daily') d.setDate(d.getDate()+1);
+  else if (t.recur==='weekly') d.setDate(d.getDate()+7);
+  DB.tasks.push({...t, id:uid(), done:false, date:d.toISOString().split('T')[0]});
+}
+
+function deleteTask(id) {
+  if (!confirm('Delete this task?')) return;
+  DB.tasks = DB.tasks.filter(t=>t.id!==id);
+  save(); rerender();
+}
+
+function rescheduleToday(id) {
+  const t = DB.tasks.find(x=>x.id===id);
+  if (t) { t.date=todayStr(); save(); rerender(); }
+}
+
+// ── Detail panel ──
+let currentDetailId = null;
+
+function showDetail(id) {
+  const t = DB.tasks.find(x=>x.id===id);
+  if (!t) return;
+  currentDetailId = id;
+  const proc = getProcess(t.process);
+  const priLabels = {asap:'⚡ ASAP',high:'↑ High',normal:'Normal'};
+  document.getElementById('dp-name').textContent = t.name;
+  document.getElementById('dp-process').innerHTML = proc ? `<span style="background:${proc.color}22;color:${proc.color};font-size:11px;font-weight:500;padding:2px 8px;border-radius:4px">${proc.name}</span>` : '';
+  document.getElementById('dp-date').textContent = t.date ? (t.date===todayStr()?'Today':fmtDate(t.date))+(isOverdue(t)?' — OVERDUE':'') : 'Unscheduled';
+  document.getElementById('dp-date').style.color = isOverdue(t)?'var(--red)':t.date===todayStr()?'var(--accent)':'var(--text)';
+  document.getElementById('dp-time').textContent = fmtTime(t.time)||'No estimate';
+  document.getElementById('dp-priority').textContent = priLabels[t.priority]||'Normal';
+  document.getElementById('dp-notes').textContent = t.notes||'No notes';
+  document.getElementById('detail-overlay').classList.add('open');
+  document.getElementById('detail-panel').style.display='flex';
+  document.getElementById('detail-panel').style.flexDirection='column';
+}
+
+function closeDetail() {
+  document.getElementById('detail-overlay').classList.remove('open');
+  document.getElementById('detail-panel').style.display='none';
+  currentDetailId=null;
+}
+
+// ── Rerender current view ──
+function rerender() {
+  updateStats();
+  renderProcessNav();
+  if (currentView==='today') renderToday();
+  else if (currentView==='week') renderWeek();
+  else if (currentView==='all') renderAll();
+  else if (currentView==='backlog') renderBacklog();
+}
+
+// ── Keyboard shortcuts ──
+document.addEventListener('keydown', e => {
+  if (e.key==='Escape') { closeModal(); closeDetail(); }
+  if ((e.metaKey||e.ctrlKey) && e.key==='k') { e.preventDefault(); openAdd(); }
+});
+
+// ── Init ──
+async function init() {
+  await loadDB();
+  renderProcessNav();
+  updateStats();
+  renderToday();
+  document.getElementById('view-subtitle').textContent = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+}
+
+init();
+</script>
+</body>
+</html>
