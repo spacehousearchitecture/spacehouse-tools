@@ -910,17 +910,17 @@ body {
 const STORE_KEY = 'spacehouse_tasks_v2';
 let DB = { tasks: [], processes: [] };
 
-async function loadDB() {
+function loadDB() {
   try {
-    const r = await window.storage.get(STORE_KEY);
-    DB = r ? JSON.parse(r.value) : seedDB();
+    const raw = localStorage.getItem(STORE_KEY);
+    DB = raw ? JSON.parse(raw) : seedDB();
   } catch(e) { DB = seedDB(); }
   if (!DB.processes || !DB.processes.length) DB.processes = defaultProcesses();
   if (!DB.tasks) DB.tasks = [];
 }
 
-async function save() {
-  try { await window.storage.set(STORE_KEY, JSON.stringify(DB)); } catch(e) {}
+function save() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(DB)); } catch(e) {}
 }
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,5); }
@@ -1414,8 +1414,8 @@ document.addEventListener('keydown', e => {
 });
 
 // ── Init ──
-async function init() {
-  await loadDB();
+function init() {
+  loadDB();
   renderProcessNav();
   updateStats();
   renderToday();

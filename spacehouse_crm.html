@@ -960,8 +960,8 @@ let DB = {};
 
 async function loadDB() {
   try {
-    const r = await window.storage.get(KEY);
-    DB = r ? JSON.parse(r.value) : defaultDB();
+    const raw = localStorage.getItem(KEY);
+    DB = raw ? JSON.parse(raw) : defaultDB();
   } catch(e) {
     DB = defaultDB();
   }
@@ -974,9 +974,9 @@ async function loadDB() {
   if (!DB.clients) DB.clients = defaultClients();
 }
 
-async function saveDB() {
+function saveDB() {
   try {
-    await window.storage.set(KEY, JSON.stringify(DB));
+    localStorage.setItem(KEY, JSON.stringify(DB));
   } catch(e) { console.warn('Storage save failed', e); }
 }
 
@@ -1842,8 +1842,8 @@ function exportTimePDF() {
 }
 
 // ── Init ──
-async function init() {
-  await loadDB();
+function init() {
+  loadDB();
   document.getElementById('today-date').textContent = new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
   renderDashboard();
 }
