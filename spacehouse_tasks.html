@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Spacehouse — Task Scheduler</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 
 :root {
   --bg: #0f0f0e;
@@ -30,11 +30,25 @@
   --purple-dim: rgba(155,114,232,0.15);
   --teal: #3db9a8;
   --teal-dim: rgba(61,185,168,0.15);
-  --font: 'Instrument Sans', system-ui, sans-serif;
-  --serif: 'Instrument Serif', Georgia, serif;
-  --mono: 'JetBrains Mono', monospace;
+  --font: 'Jost', 'Futura', 'Century Gothic', system-ui, sans-serif;
+  --serif: 'Jost', 'Futura', 'Century Gothic', system-ui, sans-serif;
+  --mono: 'DM Mono', 'Courier New', monospace;
   --r: 8px;
   --r-lg: 12px;
+}
+
+html.light {
+  --bg: #f7f6f3;
+  --surface: #ffffff;
+  --surface2: #f0eee8;
+  --surface3: #e3e0d7;
+  --border: rgba(0,0,0,0.09);
+  --border2: rgba(0,0,0,0.18);
+  --text: #1a1917;
+  --text2: #5f5e58;
+  --text3: #97948c;
+  --accent-dim: rgba(180,135,30,0.14);
+  --accent-dim2: rgba(180,135,30,0.08);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -740,6 +754,10 @@ body {
       <div class="brand-sub">task scheduler</div>
     </div>
 
+    <div style="padding:10px 14px 0;">
+      <button onclick="openAdd()" style="width:100%;padding:10px 0;border-radius:8px;border:none;background:#b0ff00;color:#0a1a00;font-family:var(--font);font-size:13px;font-weight:600;letter-spacing:0.04em;cursor:pointer;transition:all 0.15s;box-shadow:0 0 12px rgba(176,255,0,0.35)" onmouseenter="this.style.background='#c6ff2e';this.style.boxShadow='0 0 20px rgba(176,255,0,0.55)'" onmouseleave="this.style.background='#b0ff00';this.style.boxShadow='0 0 12px rgba(176,255,0,0.35)'">+ New Task</button>
+    </div>
+
     <div class="nav-section">Views</div>
     <div class="nav-item active" data-view="today" onclick="switchView('today',this)">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.3"/><path d="M7 4.5V7l1.5 1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
@@ -764,9 +782,7 @@ body {
     <div class="nav-section">Processes</div>
     <div class="process-list" id="process-nav"></div>
 
-    <div style="padding:12px 18px;border-top:1px solid var(--border);margin-top:auto">
-      <button class="btn btn-accent" style="width:100%;justify-content:center;display:flex" onclick="openAdd()">+ New Task</button>
-    </div>
+
   </nav>
 
   <!-- Main -->
@@ -788,9 +804,10 @@ body {
         <button class="btn btn-sm btn-ghost" onclick="shiftWeek(1)">›</button>
         <button class="btn btn-sm" onclick="goToThisWeek()">This week</button>
       </div>
-      <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
-        <span id="sync-indicator" style="font-size:11px;font-family:var(--mono);transition:color 0.2s"></span>
-        <button class="btn btn-sm" onclick="openAdd()">+ Task</button>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <div id="sync-indicator" style="font-size:11px;font-family:var(--mono);padding:4px 10px;border-radius:99px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);transition:all 0.3s;white-space:nowrap">● Connecting...</div>
+        <button class="btn btn-sm" id="theme-btn" onclick="toggleTheme()" title="Toggle light / dark mode">☀</button>
+        <button class="btn btn-sm" onclick="openSettings()" title="Settings">⚙</button>
       </div>
     </div>
 
@@ -906,6 +923,37 @@ body {
   </div>
 </div>
 
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<div class="overlay" id="settings-modal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-head">
+      <h2>Settings</h2>
+      <button class="modal-x" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field"><label>Workday Start</label><select id="s-start"></select></div>
+        <div class="field"><label>Workday End</label><select id="s-end"></select></div>
+      </div>
+      <p style="font-size:11px;color:var(--text3);line-height:1.7;margin-bottom:12px">
+        Daily capacity = working hours between start and end (default 8 AM – 5 PM = 9h).
+        When a day's scheduled tasks exceed capacity, the lowest-priority overflow is automatically
+        pushed to the next day and tagged <span style="color:var(--purple);font-weight:600">moved</span>.
+      </p>
+      <div class="field">
+        <label>Google Calendar</label>
+        <button class="btn" style="width:100%" onclick="connectCalendar()" id="gcal-btn">Connect Google Calendar</button>
+        <p id="gcal-status" style="font-size:11px;color:var(--text3);margin-top:6px;line-height:1.6"></p>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeSettings()">Cancel</button>
+        <button class="btn btn-accent" onclick="saveSettings()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── Supabase config ──
 const SUPA_URL = 'https://dqgtuaajamhuknvlhjsr.supabase.co';
@@ -935,13 +983,21 @@ async function loadDB() {
       const raw = localStorage.getItem(LOCAL_KEY);
       DB = raw ? JSON.parse(raw) : seedDB();
     } catch(e2) { DB = seedDB(); }
+    if (!DB.tasks) DB.tasks = [];
+    if (!DB.settings) DB.settings = { workStart: 8, workEnd: 17 };
+    migrateProcesses();
     showSyncStatus('error');
     return;
   }
-  if (!DB.processes || !DB.processes.length) DB.processes = defaultProcesses();
   if (!DB.tasks) DB.tasks = [];
+  if (!DB.settings) DB.settings = { workStart: 8, workEnd: 17 };
+  migrateProcesses();
+  let dbChanged = false;
+  if (generateRecurringInstances()) dbChanged = true;
+  if (autoScheduleOverflow()) dbChanged = true;
   try { localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); } catch(e) {}
   showSyncStatus('idle');
+  if (dbChanged) pushDB();
 }
 
 async function pushDB() {
@@ -968,9 +1024,22 @@ function save() {
 function showSyncStatus(status) {
   const el = document.getElementById('sync-indicator');
   if (!el) return;
-  if (status === 'syncing') { el.textContent = '↻ Syncing...'; el.style.color = 'var(--text3)'; }
-  else if (status === 'error') { el.textContent = '⚠ Offline — changes saved locally'; el.style.color = 'var(--red)'; }
-  else { el.textContent = '✓ Synced'; el.style.color = 'var(--green)'; setTimeout(()=>{ if(el) el.textContent=''; }, 2500); }
+  if (status === 'syncing') {
+    el.innerHTML = '↻ Syncing...';
+    el.style.color = 'var(--text3)';
+    el.style.borderColor = 'rgba(255,255,255,0.1)';
+    el.style.background = 'rgba(255,255,255,0.05)';
+  } else if (status === 'error') {
+    el.innerHTML = '⚠ Offline';
+    el.style.color = 'var(--red)';
+    el.style.borderColor = 'rgba(224,90,74,0.4)';
+    el.style.background = 'rgba(224,90,74,0.1)';
+  } else {
+    el.innerHTML = '● Synced';
+    el.style.color = 'var(--green)';
+    el.style.borderColor = 'rgba(76,175,125,0.4)';
+    el.style.background = 'rgba(76,175,125,0.1)';
+  }
 }
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,5); }
@@ -978,13 +1047,92 @@ function uid() { return Date.now().toString(36) + Math.random().toString(36).sli
 // ── Processes ──
 function defaultProcesses() {
   return [
-    {id:'cd',   name:'Construction Docs', color:'#5b8ef0'},
-    {id:'biz',  name:'Business Dev',      color:'#d4a853'},
-    {id:'mktg', name:'Marketing',         color:'#9b72e8'},
-    {id:'ops',  name:'Operations',        color:'#4caf7d'},
-    {id:'admin',name:'Admin',             color:'#3db9a8'},
-    {id:'design',name:'Design',           color:'#e05a4a'},
+    {id:'daily',        name:'Daily',                  color:'#3db9a8'},
+    {id:'admin',        name:'Admin',                  color:'#9e9a92'},
+    {id:'marketing',    name:'Marketing',              color:'#9b72e8'},
+    {id:'bizdev',       name:'Business Dev',           color:'#d4a853'},
+    {id:'startup',      name:'Project Startup',        color:'#e08a3c'},
+    {id:'research',     name:'Research',               color:'#5bc8f0'},
+    {id:'design',       name:'Design',                 color:'#ed6a9e'},
+    {id:'cdocs',        name:'Construction Documents', color:'#5b8ef0'},
+    {id:'qa',           name:'QA',                     color:'#c3d34a'},
+    {id:'construction', name:'Construction',           color:'#4caf7d'},
   ];
+}
+
+function migrateProcesses() {
+  const canonical = defaultProcesses();
+  const ids = canonical.map(p=>p.id);
+  const map = {cd:'cdocs', biz:'bizdev', mktg:'marketing', ops:'daily'};
+  DB.tasks.forEach(t=>{
+    if (map[t.process]) t.process = map[t.process];
+    if (t.process && !ids.includes(t.process)) t.process = null;
+  });
+  const dailyNames = ['check emails','comb the network','lunch','exercise'];
+  DB.tasks.forEach(t=>{
+    if (dailyNames.includes((t.name||'').toLowerCase().trim())) {
+      t.process = 'daily';
+      if (!t.recur) t.recur = 'daily';
+    }
+  });
+  DB.processes = canonical;
+}
+
+function generateRecurringInstances() {
+  const today = todayStr();
+  let changed = false;
+  const latest = {};
+  DB.tasks.filter(t=>t.recur && t.date).forEach(t=>{
+    const k = (t.name||'').toLowerCase().trim() + '|' + t.recur;
+    if (!latest[k] || t.date > latest[k].date) latest[k] = t;
+  });
+  Object.values(latest).forEach(t=>{
+    if (t.recur === 'daily' && t.date < today) {
+      DB.tasks.push({...t, id:uid(), done:false, doneAt:null, date:today, autoRescheduled:false});
+      changed = true;
+    } else if (t.recur === 'weekly') {
+      const nd = new Date(t.date); nd.setDate(nd.getDate()+7);
+      const nds = nd.toISOString().split('T')[0];
+      if (nds <= today) {
+        DB.tasks.push({...t, id:uid(), done:false, doneAt:null, date:nds, autoRescheduled:false});
+        changed = true;
+      }
+    }
+  });
+  return changed;
+}
+
+function workCapacity() {
+  const s = DB.settings || {workStart:8, workEnd:17};
+  return Math.max(1, (s.workEnd||17) - (s.workStart||8));
+}
+
+function autoScheduleOverflow() {
+  const today = todayStr();
+  let changed = false;
+  const d = new Date(today + 'T12:00:00');
+  for (let k = 0; k < 60; k++) {
+    const ds = d.toISOString().split('T')[0];
+    const dayTasks = DB.tasks
+      .filter(t=>!t.done && t.date === ds)
+      .sort((a,b)=>priorityOrder(b)-priorityOrder(a));
+    const cap = capacityForDate(ds);
+    let used = 0;
+    for (const t of dayTasks) {
+      const h = +t.time || 0;
+      if (used + h > cap && used > 0) {
+        const nd = new Date(ds + 'T12:00:00');
+        nd.setDate(nd.getDate() + 1);
+        t.date = nd.toISOString().split('T')[0];
+        t.autoRescheduled = true;
+        changed = true;
+      } else {
+        used += h;
+      }
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return changed;
 }
 
 // ── Seed data from the screenshot ──
@@ -1152,6 +1300,7 @@ function listTaskHTML(t, showOverdue=false) {
     ${proc ? `<span class="lt-process" style="background:${color}22;color:${color};font-size:10px;padding:1px 7px">${proc.name}</span>` : ''}
     ${timeStr ? `<span class="lt-time">${timeStr}</span>` : ''}
     ${t.date&&showOverdue ? `<span class="lt-date overdue" style="color:var(--red)">${fmtDate(t.date)}</span>` : ''}
+    ${t.autoRescheduled&&!t.done ? `<span style="font-size:9px;font-weight:600;color:var(--purple);background:var(--purple-dim);padding:1px 6px;border-radius:4px" title="Auto-rescheduled: did not fit in the original day">moved</span>` : ''}
     <div class="lt-actions">
       <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();editTask('${t.id}')">edit</button>
     </div>
@@ -1185,7 +1334,7 @@ function renderWeek() {
         <div style="background:var(--surface);padding:10px 10px 8px;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5">
           <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3)">${dayNames[i]}</div>
           <div style="font-size:20px;font-weight:600;color:${isToday?'var(--accent)':'var(--text2)'};line-height:1.1;margin-top:1px">${d.getDate()}</div>
-          ${totalH>0?`<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px">${fmtTime(totalH)}</div>`:''}
+          ${totalH>0||busyHoursForDate(ds)>0?`<div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px">${totalH>0?fmtTime(totalH):''}${busyHoursForDate(ds)>0?` · ${fmtTime(busyHoursForDate(ds))} mtgs`:''}</div>`:''}
         </div>
         <div style="flex:1;padding:8px;overflow-y:auto">`;
       if (!dayTasks.length) {
@@ -1205,7 +1354,7 @@ function renderWeek() {
             <div class="task-meta">
               ${timeStr?`<span class="task-time">${timeStr}</span>`:''}
               ${proc?`<span class="task-process" style="background:${color}22;color:${color};font-size:9px;padding:1px 5px">${proc.name}</span>`:''}
-              ${isOvd?`<span class="task-overdue">overdue</span>`:''}
+              ${isOvd?`<span class="task-overdue">overdue</span>`:''}${t.autoRescheduled&&!t.done?`<span class="task-overdue" style="color:var(--purple);background:var(--purple-dim)" title="Auto-rescheduled">moved</span>`:''}
             </div>
           </div>`;
         });
@@ -1443,10 +1592,12 @@ function saveTask() {
     time: +(document.getElementById('f-time').value)||0,
     recur: document.getElementById('f-recur').value||'',
     notes: document.getElementById('f-notes').value,
+    autoRescheduled: false,
     done: id ? (DB.tasks.find(t=>t.id===id)?.done||false) : false
   };
   if (id) DB.tasks = DB.tasks.map(t=>t.id===id?data:t);
   else DB.tasks.push(data);
+  autoScheduleOverflow();
   save(); closeModal(); rerender();
 }
 
@@ -1514,6 +1665,143 @@ function rerender() {
   else if (currentView==='backlog') renderBacklog();
 }
 
+// ── Settings ──
+function openSettings() {
+  const s = DB.settings || {workStart:8, workEnd:17};
+  const fill = (el, val) => {
+    el.innerHTML = '';
+    for (let h = 5; h <= 22; h++) {
+      const label = (h % 12 || 12) + (h < 12 ? ':00 AM' : ':00 PM');
+      el.innerHTML += `<option value="${h}" ${h===val?'selected':''}>${label}</option>`;
+    }
+  };
+  fill(document.getElementById('s-start'), s.workStart);
+  fill(document.getElementById('s-end'), s.workEnd);
+  const cache = gcalCache();
+  if (cache) {
+    const ageH = Math.round((Date.now() - cache.fetchedAt) / 3600000);
+    updateGcalStatus('Calendar data last synced ' + (ageH < 1 ? 'under an hour' : ageH + 'h') + ' ago. Click Connect to refresh.');
+  }
+  document.getElementById('settings-modal').classList.add('open');
+}
+
+function closeSettings() {
+  document.getElementById('settings-modal').classList.remove('open');
+}
+
+function saveSettings() {
+  const start = +document.getElementById('s-start').value;
+  const end = +document.getElementById('s-end').value;
+  if (end <= start) { alert('Workday end must be after start'); return; }
+  DB.settings = { workStart: start, workEnd: end };
+  autoScheduleOverflow();
+  save();
+  closeSettings();
+  rerender();
+}
+
+// ── Google Calendar ──
+const GCAL_CLIENT_ID = '11273294643-l52loh14e22qd8ag5oqf1ksdkufoobbn.apps.googleusercontent.com';
+let gcalToken = null;
+
+function gcalCache() {
+  try { return JSON.parse(localStorage.getItem('sh_gcal_busy') || 'null'); } catch(e) { return null; }
+}
+
+function busyHoursForDate(ds) {
+  const cache = gcalCache();
+  return (cache && cache.days && cache.days[ds]) ? cache.days[ds] : 0;
+}
+
+function capacityForDate(ds) {
+  return Math.max(0.5, workCapacity() - busyHoursForDate(ds));
+}
+
+function localDateStr(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function connectCalendar() {
+  if (!window.google || !google.accounts) {
+    updateGcalStatus('Google sign-in library still loading — try again in a few seconds.');
+    return;
+  }
+  const tc = google.accounts.oauth2.initTokenClient({
+    client_id: GCAL_CLIENT_ID,
+    scope: 'https://www.googleapis.com/auth/calendar.readonly',
+    callback: async (resp) => {
+      if (resp.error) { updateGcalStatus('Connection failed: ' + resp.error); return; }
+      gcalToken = resp.access_token;
+      await refreshBusy();
+    }
+  });
+  tc.requestAccessToken();
+}
+
+async function refreshBusy() {
+  if (!gcalToken) return;
+  updateGcalStatus('Fetching your calendar...');
+  const timeMin = new Date(); timeMin.setHours(0,0,0,0);
+  const timeMax = new Date(timeMin); timeMax.setDate(timeMax.getDate() + 14);
+  try {
+    const res = await fetch('https://www.googleapis.com/calendar/v3/freeBusy', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + gcalToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        timeMin: timeMin.toISOString(),
+        timeMax: timeMax.toISOString(),
+        items: [{ id: 'primary' }]
+      })
+    });
+    if (!res.ok) throw new Error('API error ' + res.status);
+    const data = await res.json();
+    const busy = (data.calendars && data.calendars.primary && data.calendars.primary.busy) || [];
+    const s = DB.settings || { workStart: 8, workEnd: 17 };
+    const days = {};
+    busy.forEach(b => {
+      const st = new Date(b.start), en = new Date(b.end);
+      let cur = new Date(st); cur.setHours(0,0,0,0);
+      while (cur < en) {
+        const dayStart = new Date(cur); dayStart.setHours(s.workStart, 0, 0, 0);
+        const dayEnd = new Date(cur); dayEnd.setHours(s.workEnd, 0, 0, 0);
+        const segStart = new Date(Math.max(dayStart.getTime(), st.getTime()));
+        const segEnd = new Date(Math.min(dayEnd.getTime(), en.getTime()));
+        if (segEnd > segStart) {
+          const ds = localDateStr(segStart);
+          days[ds] = (days[ds] || 0) + (segEnd - segStart) / 3600000;
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+    });
+    localStorage.setItem('sh_gcal_busy', JSON.stringify({ fetchedAt: Date.now(), days }));
+    updateGcalStatus('Connected. ' + busy.length + ' busy blocks found over the next 14 days — daily capacity adjusted around your meetings.');
+    autoScheduleOverflow();
+    save();
+    rerender();
+  } catch(e) {
+    updateGcalStatus('Calendar fetch failed: ' + e.message);
+  }
+}
+
+function updateGcalStatus(msg) {
+  const el = document.getElementById('gcal-status');
+  if (el) el.textContent = msg;
+}
+
+// ── Theme ──
+function applyTheme() {
+  const t = localStorage.getItem('sh_theme') || 'dark';
+  document.documentElement.classList.toggle('light', t === 'light');
+  const b = document.getElementById('theme-btn');
+  if (b) b.textContent = t === 'light' ? '☾' : '☀';
+}
+
+function toggleTheme() {
+  const cur = localStorage.getItem('sh_theme') || 'dark';
+  localStorage.setItem('sh_theme', cur === 'dark' ? 'light' : 'dark');
+  applyTheme();
+}
+
 // ── Keyboard shortcuts ──
 document.addEventListener('keydown', e => {
   if (e.key==='Escape') { closeModal(); closeDetail(); }
@@ -1522,6 +1810,7 @@ document.addEventListener('keydown', e => {
 
 // ── Init ──
 async function init() {
+  applyTheme();
   document.getElementById('view-subtitle').textContent = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
   await loadDB();
   renderProcessNav();
