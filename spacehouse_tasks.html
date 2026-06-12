@@ -806,7 +806,13 @@ body {
       </div>
       <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
         <div id="sync-indicator" style="font-size:11px;font-family:var(--mono);padding:4px 10px;border-radius:99px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);transition:all 0.3s;white-space:nowrap">● Connecting...</div>
-        <button class="btn btn-sm" id="theme-btn" onclick="toggleTheme()" title="Toggle light / dark mode">☀</button>
+        <div onclick="toggleTheme()" title="Toggle light / dark mode" style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none">
+          <span style="font-size:11px;color:var(--text3)">☀</span>
+          <div id="theme-track" style="width:36px;height:20px;border-radius:99px;background:var(--surface3);border:1px solid var(--border2);position:relative;transition:background 0.2s">
+            <div id="theme-knob" style="position:absolute;top:1.5px;left:2px;width:15px;height:15px;border-radius:50%;background:var(--accent);transition:transform 0.2s ease;box-shadow:0 1px 3px rgba(0,0,0,0.3)"></div>
+          </div>
+          <span style="font-size:11px;color:var(--text3)">☾</span>
+        </div>
         <button class="btn btn-sm" onclick="openSettings()" title="Settings">⚙</button>
       </div>
     </div>
@@ -993,6 +999,7 @@ async function loadDB() {
   if (!DB.settings) DB.settings = { workStart: 8, workEnd: 17 };
   migrateProcesses();
   let dbChanged = false;
+  if (cleanupRecurring()) dbChanged = true;
   if (generateRecurringInstances()) dbChanged = true;
   if (autoScheduleOverflow()) dbChanged = true;
   try { localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); } catch(e) {}
@@ -1078,6 +1085,39 @@ function migrateProcesses() {
   DB.processes = canonical;
 }
 
+function cleanupRecurring() {
+  const today = todayStr();
+  let changed = false;
+  // Capture one template per unique daily task name (latest instance wins)
+  const templates = {};
+  DB.tasks.filter(t => t.recur === 'daily').forEach(t => {
+    const k = (t.name||'').toLowerCase().trim();
+    if (!templates[k] || (t.date||'') > (templates[k].date||'')) templates[k] = t;
+  });
+  // Delete ALL daily instances not dated today (yesterday's and older, done or not)
+  const before = DB.tasks.length;
+  DB.tasks = DB.tasks.filter(t => !(t.recur === 'daily' && t.date !== today));
+  if (DB.tasks.length !== before) changed = true;
+  // Dedupe today's daily instances by name — keep exactly one
+  const seen = {};
+  DB.tasks = DB.tasks.filter(t => {
+    if (t.recur === 'daily' && t.date === today) {
+      const k = (t.name||'').toLowerCase().trim();
+      if (seen[k]) { changed = true; return false; }
+      seen[k] = true;
+    }
+    return true;
+  });
+  // Recreate a fresh, unchecked instance for any daily template missing today
+  Object.entries(templates).forEach(([k, tpl]) => {
+    if (!seen[k]) {
+      DB.tasks.push({...tpl, id: uid(), date: today, done: false, doneAt: null, autoRescheduled: false});
+      changed = true;
+    }
+  });
+  return changed;
+}
+
 function generateRecurringInstances() {
   const today = todayStr();
   let changed = false;
@@ -1087,10 +1127,7 @@ function generateRecurringInstances() {
     if (!latest[k] || t.date > latest[k].date) latest[k] = t;
   });
   Object.values(latest).forEach(t=>{
-    if (t.recur === 'daily' && t.date < today) {
-      DB.tasks.push({...t, id:uid(), done:false, doneAt:null, date:today, autoRescheduled:false});
-      changed = true;
-    } else if (t.recur === 'weekly') {
+    if (t.recur === 'weekly') {
       const nd = new Date(t.date); nd.setDate(nd.getDate()+7);
       const nds = nd.toISOString().split('T')[0];
       if (nds <= today) {
@@ -1120,6 +1157,7 @@ function autoScheduleOverflow() {
     let used = 0;
     for (const t of dayTasks) {
       const h = +t.time || 0;
+      if (t.recur === 'daily') { used += h; continue; }
       if (used + h > cap && used > 0) {
         const nd = new Date(ds + 'T12:00:00');
         nd.setDate(nd.getDate() + 1);
@@ -1606,7 +1644,6 @@ function toggleDone(id) {
   if (!t) return;
   t.done = !t.done;
   t.doneAt = t.done ? new Date().toISOString() : null;
-  if (t.done && t.recur) scheduleNext(t);
   save(); rerender();
 }
 
@@ -1792,8 +1829,8 @@ function updateGcalStatus(msg) {
 function applyTheme() {
   const t = localStorage.getItem('sh_theme') || 'dark';
   document.documentElement.classList.toggle('light', t === 'light');
-  const b = document.getElementById('theme-btn');
-  if (b) b.textContent = t === 'light' ? '☾' : '☀';
+  const knob = document.getElementById('theme-knob');
+  if (knob) knob.style.transform = t === 'dark' ? 'translateX(16px)' : 'translateX(0)';
 }
 
 function toggleTheme() {
