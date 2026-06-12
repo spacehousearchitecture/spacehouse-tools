@@ -788,7 +788,8 @@ body {
         <button class="btn btn-sm btn-ghost" onclick="shiftWeek(1)">›</button>
         <button class="btn btn-sm" onclick="goToThisWeek()">This week</button>
       </div>
-      <div style="margin-left:auto;display:flex;gap:6px">
+      <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+        <span id="sync-indicator" style="font-size:11px;font-family:var(--mono);transition:color 0.2s"></span>
         <button class="btn btn-sm" onclick="openAdd()">+ Task</button>
       </div>
     </div>
@@ -906,21 +907,70 @@ body {
 </div>
 
 <script>
-// ── Storage ──
-const STORE_KEY = 'spacehouse_tasks_v2';
+// ── Supabase config ──
+const SUPA_URL = 'https://dqgtuaajamhuknvlhjsr.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxZ3R1YWFqYW1odWtudmxoanNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyODU0ODMsImV4cCI6MjA5Njg2MTQ4M30.Yk0MB3ZRIr-3TJZmZqa0jBoWkG3R-jrXX27g9CFe5Ck';
+const SUPA_HEADERS = { 'Content-Type': 'application/json', 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY };
+const DB_ROW_ID = 'main';
+const LOCAL_KEY = 'spacehouse_tasks_v3';
+
 let DB = { tasks: [], processes: [] };
 
-function loadDB() {
+// ── Supabase persistence ──
+async function loadDB() {
+  showSyncStatus('syncing');
   try {
-    const raw = localStorage.getItem(STORE_KEY);
-    DB = raw ? JSON.parse(raw) : seedDB();
-  } catch(e) { DB = seedDB(); }
+    const res = await fetch(`${SUPA_URL}/rest/v1/task_db?id=eq.${DB_ROW_ID}&select=data`, { headers: SUPA_HEADERS });
+    if (res.ok) {
+      const rows = await res.json();
+      if (rows.length) {
+        DB = rows[0].data;
+      } else {
+        DB = seedDB();
+        await pushDB();
+      }
+    } else { throw new Error('fetch failed'); }
+  } catch(e) {
+    try {
+      const raw = localStorage.getItem(LOCAL_KEY);
+      DB = raw ? JSON.parse(raw) : seedDB();
+    } catch(e2) { DB = seedDB(); }
+    showSyncStatus('error');
+    return;
+  }
   if (!DB.processes || !DB.processes.length) DB.processes = defaultProcesses();
   if (!DB.tasks) DB.tasks = [];
+  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); } catch(e) {}
+  showSyncStatus('idle');
 }
 
+async function pushDB() {
+  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); } catch(e) {}
+  showSyncStatus('syncing');
+  try {
+    const res = await fetch(`${SUPA_URL}/rest/v1/task_db`, {
+      method: 'POST',
+      headers: { ...SUPA_HEADERS, 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify({ id: DB_ROW_ID, data: DB, updated_at: new Date().toISOString() })
+    });
+    if (!res.ok) throw new Error('push failed');
+    showSyncStatus('idle');
+  } catch(e) { showSyncStatus('error'); }
+}
+
+let saveTimer = null;
 function save() {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(DB)); } catch(e) {}
+  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); } catch(e) {}
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => pushDB(), 600);
+}
+
+function showSyncStatus(status) {
+  const el = document.getElementById('sync-indicator');
+  if (!el) return;
+  if (status === 'syncing') { el.textContent = '↻ Syncing...'; el.style.color = 'var(--text3)'; }
+  else if (status === 'error') { el.textContent = '⚠ Offline — changes saved locally'; el.style.color = 'var(--red)'; }
+  else { el.textContent = '✓ Synced'; el.style.color = 'var(--green)'; setTimeout(()=>{ if(el) el.textContent=''; }, 2500); }
 }
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,5); }
@@ -1188,20 +1238,35 @@ function renderWeek() {
 }
 
 // ── Render all ──
+function isArchived(t) {
+  if (!t.done || !t.doneAt) return false;
+  const doneDate = new Date(t.doneAt);
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 7);
+  return doneDate < cutoff;
+}
+
 function renderAll() {
   const el = document.getElementById('view-all');
-  const filterProc = filterProcess;
-  let tasks = [...DB.tasks];
-  if (filterProc) tasks = tasks.filter(t=>t.process===filterProc);
-  tasks.sort((a,b) => {
+  let tasks = [...DB.tasks].filter(t => !isArchived(t));
+  if (filterProcess) tasks = tasks.filter(t=>t.process===filterProcess);
+
+  // Split open vs done
+  const open = tasks.filter(t=>!t.done);
+  const done = tasks.filter(t=>t.done);
+
+  // Sort open by date
+  open.sort((a,b)=>{
     if (!a.date && !b.date) return 0;
     if (!a.date) return 1;
     if (!b.date) return -1;
-    return a.date.localeCompare(b.date);
+    if (a.date !== b.date) return a.date.localeCompare(b.date);
+    return priorityOrder(b) - priorityOrder(a);
   });
 
+  // Group open by date
   const grouped = {};
-  tasks.forEach(t=>{
+  open.forEach(t=>{
     const k = t.date||'__nodate__';
     if (!grouped[k]) grouped[k]=[];
     grouped[k].push(t);
@@ -1209,6 +1274,11 @@ function renderAll() {
 
   let html = '<div style="padding:20px;max-width:760px">';
   const today = todayStr();
+
+  if (!open.length && !done.length) {
+    html += '<div style="color:var(--text3);font-size:13px;padding:20px 0">No tasks</div>';
+  }
+
   Object.entries(grouped).forEach(([date,ts])=>{
     const isToday = date===today;
     const isOvd = date<today&&date!=='__nodate__';
@@ -1221,7 +1291,43 @@ function renderAll() {
     html += '</div></div>';
   });
 
-  if (!tasks.length) html += '<div style="color:var(--text3);font-size:13px;padding:20px 0">No tasks</div>';
+  // Completed tasks at the bottom
+  if (done.length) {
+    html += `<div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);margin-bottom:8px;display:flex;align-items:center;gap:8px">
+        Completed
+        <span style="font-family:var(--mono);font-weight:400">${done.length}</span>
+        <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:4px">— archives after 7 days</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">`;
+    done.forEach(t=>{ html+=listTaskHTML(t); });
+    html += '</div></div>';
+  }
+
+  // Archive link
+  const archived = DB.tasks.filter(t=>isArchived(t));
+  if (archived.length) {
+    html += `<div style="padding:12px 0;border-top:1px solid var(--border);margin-top:8px">
+      <span style="font-size:12px;color:var(--text3);cursor:pointer" onclick="renderArchive()"
+        onmouseenter="this.style.color='var(--text2)'" onmouseleave="this.style.color='var(--text3)'">
+        View archive (${archived.length} tasks) →
+      </span>
+    </div>`;
+  }
+
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function renderArchive() {
+  const el = document.getElementById('view-all');
+  const archived = DB.tasks.filter(t=>isArchived(t));
+  let html = '<div style="padding:20px;max-width:760px">';
+  html += `<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+    <span style="font-size:13px;font-weight:500;color:var(--text2)">Archive</span>
+    <button class="btn btn-sm btn-ghost" onclick="renderAll()">← Back</button>
+  </div>`;
+  archived.forEach(t=>{ html+=listTaskHTML(t); });
   html += '</div>';
   el.innerHTML = html;
 }
@@ -1348,6 +1454,7 @@ function toggleDone(id) {
   const t = DB.tasks.find(x=>x.id===id);
   if (!t) return;
   t.done = !t.done;
+  t.doneAt = t.done ? new Date().toISOString() : null;
   if (t.done && t.recur) scheduleNext(t);
   save(); rerender();
 }
@@ -1414,16 +1521,15 @@ document.addEventListener('keydown', e => {
 });
 
 // ── Init ──
-function init() {
-  loadDB();
+async function init() {
+  document.getElementById('view-subtitle').textContent = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  await loadDB();
   renderProcessNav();
   updateStats();
   renderToday();
-  document.getElementById('view-subtitle').textContent = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 }
 
 init();
 </script>
 </body>
 </html>
-
