@@ -1085,36 +1085,54 @@ function migrateProcesses() {
   DB.processes = canonical;
 }
 
+// Names that should always be treated as daily recurring, regardless of how
+// they were originally created (catches legacy weekly/no-recur duplicates).
+const DAILY_TASK_NAMES = ['check emails', 'comb the network', 'lunch', 'exercise'];
+
+function isDailyTask(t) {
+  return t.recur === 'daily' || DAILY_TASK_NAMES.includes((t.name||'').toLowerCase().trim());
+}
+
 function cleanupRecurring() {
   const today = todayStr();
   let changed = false;
-  // Capture one template per unique daily task name (latest instance wins)
+
+  // 1. Capture one template per unique daily task name (most recent wins).
   const templates = {};
-  DB.tasks.filter(t => t.recur === 'daily').forEach(t => {
+  DB.tasks.filter(isDailyTask).forEach(t => {
     const k = (t.name||'').toLowerCase().trim();
     if (!templates[k] || (t.date||'') > (templates[k].date||'')) templates[k] = t;
   });
-  // Delete ALL daily instances not dated today (yesterday's and older, done or not)
+
+  // 2. Delete EVERY daily instance not dated exactly today — past OR future,
+  //    done or not. This clears the accumulated future-dated chain.
   const before = DB.tasks.length;
-  DB.tasks = DB.tasks.filter(t => !(t.recur === 'daily' && t.date !== today));
+  DB.tasks = DB.tasks.filter(t => !(isDailyTask(t) && t.date !== today));
   if (DB.tasks.length !== before) changed = true;
-  // Dedupe today's daily instances by name — keep exactly one
+
+  // 3. Dedupe today's daily instances by name — keep exactly one each.
   const seen = {};
   DB.tasks = DB.tasks.filter(t => {
-    if (t.recur === 'daily' && t.date === today) {
+    if (isDailyTask(t) && t.date === today) {
       const k = (t.name||'').toLowerCase().trim();
       if (seen[k]) { changed = true; return false; }
       seen[k] = true;
     }
     return true;
   });
-  // Recreate a fresh, unchecked instance for any daily template missing today
+
+  // 4. Ensure exactly one fresh, unchecked instance exists for today, correctly
+  //    flagged as daily so future cleanups recognize it.
   Object.entries(templates).forEach(([k, tpl]) => {
     if (!seen[k]) {
-      DB.tasks.push({...tpl, id: uid(), date: today, done: false, doneAt: null, autoRescheduled: false});
+      DB.tasks.push({...tpl, id: uid(), date: today, recur: 'daily', done: false, doneAt: null, autoRescheduled: false});
       changed = true;
+    } else {
+      const inst = DB.tasks.find(t => t.date === today && (t.name||'').toLowerCase().trim() === k);
+      if (inst && inst.recur !== 'daily') { inst.recur = 'daily'; changed = true; }
     }
   });
+
   return changed;
 }
 
@@ -1122,7 +1140,7 @@ function generateRecurringInstances() {
   const today = todayStr();
   let changed = false;
   const latest = {};
-  DB.tasks.filter(t=>t.recur && t.date).forEach(t=>{
+  DB.tasks.filter(t=>t.recur && t.date && !isDailyTask(t)).forEach(t=>{
     const k = (t.name||'').toLowerCase().trim() + '|' + t.recur;
     if (!latest[k] || t.date > latest[k].date) latest[k] = t;
   });
