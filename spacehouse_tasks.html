@@ -910,14 +910,6 @@ body {
         </div>
       </div>
       <div class="field">
-        <label>Recurring</label>
-        <select id="f-recur">
-          <option value="">One-time</option>
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly</option>
-        </select>
-      </div>
-      <div class="field">
         <label>Notes</label>
         <textarea id="f-notes" rows="2" placeholder="Optional context, links, references..."></textarea>
       </div>
@@ -998,13 +990,8 @@ async function loadDB() {
   if (!DB.tasks) DB.tasks = [];
   if (!DB.settings) DB.settings = { workStart: 8, workEnd: 17 };
   migrateProcesses();
-  let dbChanged = false;
-  if (cleanupRecurring()) dbChanged = true;
-  if (generateRecurringInstances()) dbChanged = true;
-  if (autoScheduleOverflow()) dbChanged = true;
   try { localStorage.setItem(LOCAL_KEY, JSON.stringify(DB)); } catch(e) {}
   showSyncStatus('idle');
-  if (dbChanged) pushDB();
 }
 
 async function pushDB() {
@@ -1074,31 +1061,10 @@ function migrateProcesses() {
   DB.tasks.forEach(t=>{
     if (map[t.process]) t.process = map[t.process];
     if (t.process && !ids.includes(t.process)) t.process = null;
+    // Recurring tasks are retired — neutralize any leftover recur flags so
+    // nothing ever auto-generates or auto-deletes. Existing tasks are kept.
+    if (t.recur) t.recur = '';
   });
-
-  // ONE-TIME cleanup of the legacy mislabeled "Check emails" weekly chain.
-  // Guarded by a flag so it never runs again — otherwise it would keep
-  // converting legitimate one-off tasks (e.g. a future "Lunch" meeting) into
-  // daily recurring tasks, which the cleanup would then delete.
-  if (!DB._dailyMigrationDone) {
-    const dailyNames = ['check emails','comb the network','lunch','exercise'];
-    const byName = {};
-    DB.tasks.forEach(t => {
-      const k = (t.name||'').toLowerCase().trim();
-      if (!dailyNames.includes(k)) return;
-      if (!byName[k]) byName[k] = [];
-      byName[k].push(t);
-    });
-    // Only convert names that appear MULTIPLE times — that's the duplicate-chain
-    // signature. A single task named "Lunch" is left completely alone.
-    Object.values(byName).forEach(group => {
-      if (group.length > 1) {
-        group.forEach(t => { t.process = 'daily'; t.recur = 'daily'; });
-      }
-    });
-    DB._dailyMigrationDone = true;
-  }
-
   DB.processes = canonical;
 }
 
@@ -1109,69 +1075,11 @@ function isDailyTask(t) {
   return t.recur === 'daily';
 }
 
-function cleanupRecurring() {
-  const today = todayStr();
-  let changed = false;
-
-  // 1. Capture one template per unique daily task name (most recent wins).
-  const templates = {};
-  DB.tasks.filter(isDailyTask).forEach(t => {
-    const k = (t.name||'').toLowerCase().trim();
-    if (!templates[k] || (t.date||'') > (templates[k].date||'')) templates[k] = t;
-  });
-
-  // 2. Delete EVERY daily instance not dated exactly today — past OR future,
-  //    done or not. This clears the accumulated future-dated chain.
-  const before = DB.tasks.length;
-  DB.tasks = DB.tasks.filter(t => !(isDailyTask(t) && t.date !== today));
-  if (DB.tasks.length !== before) changed = true;
-
-  // 3. Dedupe today's daily instances by name — keep exactly one each.
-  const seen = {};
-  DB.tasks = DB.tasks.filter(t => {
-    if (isDailyTask(t) && t.date === today) {
-      const k = (t.name||'').toLowerCase().trim();
-      if (seen[k]) { changed = true; return false; }
-      seen[k] = true;
-    }
-    return true;
-  });
-
-  // 4. Ensure exactly one fresh, unchecked instance exists for today, correctly
-  //    flagged as daily so future cleanups recognize it.
-  Object.entries(templates).forEach(([k, tpl]) => {
-    if (!seen[k]) {
-      DB.tasks.push({...tpl, id: uid(), date: today, recur: 'daily', done: false, doneAt: null, autoRescheduled: false});
-      changed = true;
-    } else {
-      const inst = DB.tasks.find(t => t.date === today && (t.name||'').toLowerCase().trim() === k);
-      if (inst && inst.recur !== 'daily') { inst.recur = 'daily'; changed = true; }
-    }
-  });
-
-  return changed;
-}
-
-function generateRecurringInstances() {
-  const today = todayStr();
-  let changed = false;
-  const latest = {};
-  DB.tasks.filter(t=>t.recur && t.date && !isDailyTask(t)).forEach(t=>{
-    const k = (t.name||'').toLowerCase().trim() + '|' + t.recur;
-    if (!latest[k] || t.date > latest[k].date) latest[k] = t;
-  });
-  Object.values(latest).forEach(t=>{
-    if (t.recur === 'weekly') {
-      const nd = new Date(t.date); nd.setDate(nd.getDate()+7);
-      const nds = nd.toISOString().split('T')[0];
-      if (nds <= today) {
-        DB.tasks.push({...t, id:uid(), done:false, doneAt:null, date:nds, autoRescheduled:false});
-        changed = true;
-      }
-    }
-  });
-  return changed;
-}
+// Recurring tasks have been retired. These remain as harmless no-ops so any
+// stray callers don't error, but they never create or delete anything.
+function isDailyTask(t) { return false; }
+function cleanupRecurring() { return false; }
+function generateRecurringInstances() { return false; }
 
 function workCapacity() {
   const s = DB.settings || {workStart:8, workEnd:17};
@@ -1191,7 +1099,8 @@ function autoScheduleOverflow() {
     let used = 0;
     for (const t of dayTasks) {
       const h = +t.time || 0;
-      if (t.recur === 'daily') { used += h; continue; }
+      // Moving a task only changes its DATE — it is never removed. Worst case a
+      // task shifts to a later day; it always remains visible somewhere.
       if (used + h > cap && used > 0) {
         const nd = new Date(ds + 'T12:00:00');
         nd.setDate(nd.getDate() + 1);
@@ -1459,13 +1368,9 @@ function renderWeek() {
 }
 
 // ── Render all ──
-function isArchived(t) {
-  if (!t.done || !t.doneAt) return false;
-  const doneDate = new Date(t.doneAt);
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - 7);
-  return doneDate < cutoff;
-}
+// Nothing is ever auto-archived or auto-hidden. Completed tasks live in the
+// Done section indefinitely until the user explicitly deletes them.
+function isArchived(t) { return false; }
 
 function renderAll() {
   const el = document.getElementById('view-all');
@@ -1512,28 +1417,18 @@ function renderAll() {
     html += '</div></div>';
   });
 
-  // Completed tasks at the bottom
+  // Completed tasks live at the bottom in a Done section — kept forever.
   if (done.length) {
+    // Most recently completed first
+    done.sort((a,b)=>(b.doneAt||'').localeCompare(a.doneAt||''));
     html += `<div style="margin-bottom:20px">
       <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);margin-bottom:8px;display:flex;align-items:center;gap:8px">
-        Completed
+        Done
         <span style="font-family:var(--mono);font-weight:400">${done.length}</span>
-        <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:4px">— archives after 7 days</span>
       </div>
       <div style="display:flex;flex-direction:column;gap:4px">`;
     done.forEach(t=>{ html+=listTaskHTML(t); });
     html += '</div></div>';
-  }
-
-  // Archive link
-  const archived = DB.tasks.filter(t=>isArchived(t));
-  if (archived.length) {
-    html += `<div style="padding:12px 0;border-top:1px solid var(--border);margin-top:8px">
-      <span style="font-size:12px;color:var(--text3);cursor:pointer" onclick="renderArchive()"
-        onmouseenter="this.style.color='var(--text2)'" onmouseleave="this.style.color='var(--text3)'">
-        View archive (${archived.length} tasks) →
-      </span>
-    </div>`;
   }
 
   html += '</div>';
@@ -1621,7 +1516,6 @@ function openAdd() {
   document.getElementById('f-priority').value='normal';
   document.getElementById('f-date').value=todayStr();
   document.getElementById('f-time').value='';
-  document.getElementById('f-recur').value='';
   document.getElementById('f-notes').value='';
   document.getElementById('task-modal').classList.add('open');
   setTimeout(()=>document.getElementById('f-name').focus(),50);
@@ -1646,7 +1540,6 @@ function editTask(id) {
   document.getElementById('f-priority').value=t.priority||'normal';
   document.getElementById('f-date').value=t.date||'';
   document.getElementById('f-time').value=t.time||'';
-  document.getElementById('f-recur').value=t.recur||'';
   document.getElementById('f-notes').value=t.notes||'';
   closeDetail();
   document.getElementById('task-modal').classList.add('open');
@@ -1662,7 +1555,7 @@ function saveTask() {
     priority: document.getElementById('f-priority').value,
     date: document.getElementById('f-date').value||null,
     time: +(document.getElementById('f-time').value)||0,
-    recur: document.getElementById('f-recur').value||'',
+    recur: '',
     notes: document.getElementById('f-notes').value,
     autoRescheduled: false,
     done: id ? (DB.tasks.find(t=>t.id===id)?.done||false) : false
@@ -1681,12 +1574,7 @@ function toggleDone(id) {
   save(); rerender();
 }
 
-function scheduleNext(t) {
-  const d = new Date(t.date||todayStr());
-  if (t.recur==='daily') d.setDate(d.getDate()+1);
-  else if (t.recur==='weekly') d.setDate(d.getDate()+7);
-  DB.tasks.push({...t, id:uid(), done:false, date:d.toISOString().split('T')[0]});
-}
+function scheduleNext(t) { /* recurring retired — no-op */ }
 
 function deleteTask(id) {
   if (!confirm('Delete this task?')) return;
