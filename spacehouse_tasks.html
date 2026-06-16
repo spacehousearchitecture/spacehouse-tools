@@ -1075,22 +1075,38 @@ function migrateProcesses() {
     if (map[t.process]) t.process = map[t.process];
     if (t.process && !ids.includes(t.process)) t.process = null;
   });
-  const dailyNames = ['check emails','comb the network','lunch','exercise'];
-  DB.tasks.forEach(t=>{
-    if (dailyNames.includes((t.name||'').toLowerCase().trim())) {
-      t.process = 'daily';
-      if (!t.recur) t.recur = 'daily';
-    }
-  });
+
+  // ONE-TIME cleanup of the legacy mislabeled "Check emails" weekly chain.
+  // Guarded by a flag so it never runs again — otherwise it would keep
+  // converting legitimate one-off tasks (e.g. a future "Lunch" meeting) into
+  // daily recurring tasks, which the cleanup would then delete.
+  if (!DB._dailyMigrationDone) {
+    const dailyNames = ['check emails','comb the network','lunch','exercise'];
+    const byName = {};
+    DB.tasks.forEach(t => {
+      const k = (t.name||'').toLowerCase().trim();
+      if (!dailyNames.includes(k)) return;
+      if (!byName[k]) byName[k] = [];
+      byName[k].push(t);
+    });
+    // Only convert names that appear MULTIPLE times — that's the duplicate-chain
+    // signature. A single task named "Lunch" is left completely alone.
+    Object.values(byName).forEach(group => {
+      if (group.length > 1) {
+        group.forEach(t => { t.process = 'daily'; t.recur = 'daily'; });
+      }
+    });
+    DB._dailyMigrationDone = true;
+  }
+
   DB.processes = canonical;
 }
 
-// Names that should always be treated as daily recurring, regardless of how
-// they were originally created (catches legacy weekly/no-recur duplicates).
-const DAILY_TASK_NAMES = ['check emails', 'comb the network', 'lunch', 'exercise'];
-
+// A task is daily ONLY if explicitly flagged as such. We must never infer
+// "daily" from the name alone — doing so deletes legitimate one-off tasks that
+// happen to share a name (e.g. a "Lunch" meeting scheduled for next week).
 function isDailyTask(t) {
-  return t.recur === 'daily' || DAILY_TASK_NAMES.includes((t.name||'').toLowerCase().trim());
+  return t.recur === 'daily';
 }
 
 function cleanupRecurring() {
@@ -1304,7 +1320,7 @@ function renderToday() {
   const overdue = allTasks.filter(t => t.date && t.date < today && !t.done);
   const todayTasks = allTasks.filter(t => t.date === today && !t.done);
   const doneTasks = allTasks.filter(t => t.date === today && t.done);
-  const upcoming = allTasks.filter(t => t.date > today && !t.done).slice(0,3);
+  const upcoming = allTasks.filter(t => t.date > today && !t.done);
 
   let html = '<div style="max-width:700px;padding:20px">';
 
